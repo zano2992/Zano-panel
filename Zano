@@ -1,0 +1,341 @@
+--[[
+    Aim Assist with Auto Air (Auto Shoot on Jumping Enemy), FPS Unlocker, and Studio-Compatible FOV Circle
+    Author: zano9283
+    Description: Aim assist script with settings GUI, FOV circle (works in Studio and exploit), auto air (auto-shoot when target jumps), and FPS unlocker (exploit environments).
+    NOTE: This script is for educational/testing purposes. Using aim assist/auto-shoot scripts in public Roblox games is against ToS and may get you banned. Use only in your own games or private environments.
+--]]
+
+--=========== Frame Unlocker Section ===========--
+local function unlockFrames(targetFps)
+    if setfpscap then
+        setfpscap(targetFps or 999)
+        print("[FrameUnlocker] FPS cap set to " .. tostring(targetFps or 999))
+    elseif set_fps_cap then
+        set_fps_cap(targetFps or 999)
+        print("[FrameUnlocker] FPS cap set to " .. tostring(targetFps or 999))
+    else
+        warn("[FrameUnlocker] No FPS unlock method found on this client.")
+    end
+end
+
+unlockFrames(240)
+
+--=========== Aim Assist Section ===========--
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+
+local settings = {
+    FOV = 140,
+    Smoothness = 0.16,
+    PredictionTime = 0.11,
+    JumpOffset = 0,
+    XOffset = 0,
+    YOffset = 0,
+    Enabled = true,
+    ShowFOV = false,
+    AutoAir = true,
+    AutoAirCooldown = 0.25
+}
+
+-- GUI Construction
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ZanoPanel"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 350, 0, 500)
+mainFrame.Position = UDim2.new(0, 40, 0, 50)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+mainFrame.BorderSizePixel = 2
+mainFrame.BorderColor3 = Color3.fromRGB(100, 100, 120)
+mainFrame.Visible = true
+mainFrame.Parent = screenGui
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundTransparency = 0
+title.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+title.Text = "zano panel"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 22
+title.Parent = mainFrame
+
+-- Toggle Aim Assist ON/OFF
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 320, 0, 40)
+toggleButton.Position = UDim2.new(0, 10, 0, 45)
+toggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextSize = 24
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.Text = "Aim Assist: ON"
+toggleButton.Parent = mainFrame
+
+toggleButton.MouseButton1Click:Connect(function()
+    settings.Enabled = not settings.Enabled
+    if settings.Enabled then
+        toggleButton.Text = "Aim Assist: ON"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+    else
+        toggleButton.Text = "Aim Assist: OFF"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    end
+end)
+
+local function createSlider(name, min, max, step, default, yPos)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, 160, 0, 30)
+    label.Position = UDim2.new(0, 10, 0, yPos)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 18
+    label.Text = name .. ": " .. tostring(default)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = mainFrame
+
+    local input = Instance.new("TextBox")
+    input.Size = UDim2.new(0, 100, 0, 30)
+    input.Position = UDim2.new(0, 180, 0, yPos)
+    input.Text = tostring(default)
+    input.TextColor3 = Color3.new(1, 1, 1)
+    input.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    input.ClearTextOnFocus = false
+    input.Font = Enum.Font.Gotham
+    input.TextSize = 18
+    input.Parent = mainFrame
+
+    input.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local num = tonumber(input.Text)
+            if num then
+                if num < min then num = min end
+                if num > max then num = max end
+                settings[name] = num
+                label.Text = name .. ": " .. tostring(num)
+                input.Text = tostring(num)
+            else
+                input.Text = tostring(settings[name])
+            end
+        end
+    end)
+    settings[name] = default
+end
+
+createSlider("Smoothness", 0.01, 1, 0.01, settings.Smoothness, 95)
+createSlider("PredictionTime", 0, 0.5, 0.01, settings.PredictionTime, 140)
+createSlider("JumpOffset", -5, 5, 0.1, settings.JumpOffset, 185)
+createSlider("XOffset", -5, 5, 0.1, settings.XOffset, 230)
+createSlider("YOffset", -5, 5, 0.1, settings.YOffset, 275)
+
+-- FOV Circle Toggle Button (Studio and Exploit compatible)
+local fovToggleButton = Instance.new("TextButton")
+fovToggleButton.Size = UDim2.new(0, 160, 0, 30)
+fovToggleButton.Position = UDim2.new(0, 10, 0, 320)
+fovToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+fovToggleButton.TextColor3 = Color3.new(1, 1, 1)
+fovToggleButton.Font = Enum.Font.Gotham
+fovToggleButton.TextSize = 18
+fovToggleButton.Text = "Show FOV Circle: OFF"
+fovToggleButton.TextXAlignment = Enum.TextXAlignment.Left
+fovToggleButton.Parent = mainFrame
+
+fovToggleButton.MouseButton1Click:Connect(function()
+    settings.ShowFOV = not settings.ShowFOV
+    if settings.ShowFOV then
+        fovToggleButton.Text = "Show FOV Circle: ON"
+        if fovCircle then fovCircle.Visible = true end
+    else
+        fovToggleButton.Text = "Show FOV Circle: OFF"
+        if fovCircle then fovCircle.Visible = false end
+    end
+end)
+
+-- FOV Circle radius input
+local fovRadiusLabel = Instance.new("TextLabel")
+fovRadiusLabel.Size = UDim2.new(0, 160, 0, 30)
+fovRadiusLabel.Position = UDim2.new(0, 10, 0, 360)
+fovRadiusLabel.BackgroundTransparency = 1
+fovRadiusLabel.TextColor3 = Color3.new(1, 1, 1)
+fovRadiusLabel.Font = Enum.Font.Gotham
+fovRadiusLabel.TextSize = 18
+fovRadiusLabel.Text = "FOV Radius: " .. tostring(settings.FOV)
+fovRadiusLabel.TextXAlignment = Enum.TextXAlignment.Left
+fovRadiusLabel.Parent = mainFrame
+
+local fovRadiusInput = Instance.new("TextBox")
+fovRadiusInput.Size = UDim2.new(0, 100, 0, 30)
+fovRadiusInput.Position = UDim2.new(0, 180, 0, 360)
+fovRadiusInput.Text = tostring(settings.FOV)
+fovRadiusInput.TextColor3 = Color3.new(1, 1, 1)
+fovRadiusInput.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+fovRadiusInput.ClearTextOnFocus = false
+fovRadiusInput.Font = Enum.Font.Gotham
+fovRadiusInput.TextSize = 18
+fovRadiusInput.Parent = mainFrame
+
+fovRadiusInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local num = tonumber(fovRadiusInput.Text)
+        if num and num >= 10 and num <= 500 then
+            settings.FOV = num
+            fovRadiusLabel.Text = "FOV Radius: " .. tostring(num)
+        else
+            fovRadiusInput.Text = tostring(settings.FOV)
+        end
+    end
+end)
+
+-- Toggle block for panel visibility
+local toggleBlock = Instance.new("TextButton")
+toggleBlock.Size = UDim2.new(0, 30, 0, 30)
+toggleBlock.Position = UDim2.new(0, 5, 0, 50)
+toggleBlock.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+toggleBlock.Text = "≡"
+toggleBlock.TextColor3 = Color3.new(1, 1, 1)
+toggleBlock.Font = Enum.Font.GothamBold
+toggleBlock.TextSize = 22
+toggleBlock.Parent = screenGui
+toggleBlock.ZIndex = 10
+toggleBlock.AutoButtonColor = true
+
+toggleBlock.MouseButton1Click:Connect(function()
+    mainFrame.Visible = not mainFrame.Visible
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.Insert then
+        mainFrame.Visible = not mainFrame.Visible
+    end
+end)
+
+-- Helper: get target part
+local function getTargetPart(character)
+    return character:FindFirstChild("HumanoidRootPart")
+        or character:FindFirstChild("LowerTorso")
+        or character:FindFirstChild("UpperTorso")
+        or character:FindFirstChild("Head")
+        or character:FindFirstChildWhichIsA("BasePart")
+end
+
+-- Helper: get closest enemy in FOV
+local function getClosestEnemy()
+    local mousePos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local closestDist = settings.FOV or 140
+    local targetPart = nil
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                local part = getTargetPart(player.Character)
+                if part then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    if onScreen then
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                        if dist < closestDist then
+                            closestDist = dist
+                            targetPart = part
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return targetPart
+end
+
+-- FOV Circle (works in Studio and Exploit)
+local fovCircle = nil
+if Drawing and Drawing.new then
+    fovCircle = Drawing.new("Circle")
+    fovCircle.Thickness = 2
+    fovCircle.Color = Color3.fromRGB(50, 150, 255)
+    fovCircle.NumSides = 100
+    fovCircle.Transparency = 0.8
+    fovCircle.Filled = false
+    fovCircle.Visible = false
+else
+    local fovImage = Instance.new("ImageLabel")
+    fovImage.BackgroundTransparency = 1
+    fovImage.Image = "rbxassetid://11376915196"
+    fovImage.Size = UDim2.new(0, settings.FOV*2, 0, settings.FOV*2)
+    fovImage.Position = UDim2.new(0.5, -settings.FOV, 0.5, -settings.FOV)
+    fovImage.Visible = false
+    fovImage.Parent = screenGui
+    fovCircle = fovImage
+end
+
+local function simulateShoot()
+    if mouse1press and mouse1release then
+        mouse1press()
+        wait()
+        mouse1release()
+    end
+end
+
+local function isEnemyJumping(targetPart)
+    local humanoid = targetPart and targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        if humanoid.FloorMaterial == Enum.Material.Air then
+            return true
+        end
+        if math.abs(targetPart.Velocity.Y) > 5 then
+            return true
+        end
+    end
+    return false
+end
+
+local lastJumped = 0
+
+RunService.RenderStepped:Connect(function()
+    if not settings.Enabled then
+        if fovCircle then fovCircle.Visible = false end
+        return
+    end
+
+    local target = getClosestEnemy()
+    if target and target:IsA("BasePart") then
+        local camPos = Camera.CFrame.Position
+        local velocity = target.Velocity
+
+        local predicted = target.Position + velocity * (settings.PredictionTime or 0.11)
+        predicted += Vector3.new(settings.XOffset or 0, settings.JumpOffset or 0, settings.YOffset or 0)
+
+        local direction = (predicted - camPos).Unit
+        local targetCFrame = CFrame.new(camPos, camPos + direction)
+
+        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, settings.Smoothness or 0.16)
+
+        if settings.AutoAir and isEnemyJumping(target) then
+            if tick() - lastJumped > settings.AutoAirCooldown then
+                lastJumped = tick()
+                simulateShoot()
+            end
+        end
+    end
+
+    if fovCircle then
+        if Drawing and Drawing.new then
+            fovCircle.Visible = settings.ShowFOV
+            fovCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+            fovCircle.Radius = settings.FOV
+        else
+            fovCircle.Visible = settings.ShowFOV
+            fovCircle.Size = UDim2.new(0, settings.FOV*2, 0, settings.FOV*2)
+            fovCircle.Position = UDim2.new(0.5, -settings.FOV, 0.5, -settings.FOV)
+        end
+    end
+end)
